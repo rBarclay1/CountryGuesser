@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Guess the Country</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+  <script src="https://unpkg.com/globe.gl"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+</head>
+<body>
+  <div id="globe-container"></div>
+
+  <div id="hud-layer" aria-live="polite">
+    <div class="hud-pill glass">
+      <div class="hud-mode">
+        <span class="hud-icon" aria-hidden="true">&#127757;</span>
+        <span id="mode-label"><span id="mode">World</span></span>
+        <div class="mode-select-wrap" title="Select mode">
+          <span class="chip-icon" aria-hidden="true">&#127760;</span>
+          <select id="mode-select" class="hud-select" aria-label="Quiz mode"></select>
+        </div>
+      </div>
+
+      <div id="info" class="hud-target">Find: <span id="target">Loading...</span></div>
+
+      <div class="hud-stats">
+        <div class="stat-chip">Score <strong id="score">0</strong></div>
+        <div class="stat-chip">Progress <strong id="progress">0/0</strong></div>
+        <div class="stat-chip">Timer <strong id="timer">00:00</strong></div>
+        <div class="stat-chip">Streak <strong id="streak">0</strong></div>
+        <div class="stat-chip">Strikes <span id="wrong-indicator">&#9675;&#9675;&#9675;</span></div>
+      </div>
+    </div>
+
+    <div id="hud-toast" class="hud-toast" role="status" aria-live="polite"></div>
+
+    <div class="hud-controls glass">
+      <button id="next" class="hud-btn" aria-label="Next country" title="Next">Next &rarr;</button>
+      <button id="reset" class="hud-btn" aria-label="Reset game" title="Reset">&#8635; Reset</button>
+      <button id="play-again" class="hud-btn hidden" aria-label="Play again" title="Play Again">&#9654; Play</button>
+    </div>
+  </div>
+  <script type="module" src="main.js?v=20260306a"></script>
+</body>
+</html>

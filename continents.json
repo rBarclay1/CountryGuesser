@@ -1,0 +1,54 @@
+{
+  "modes": [
+    {
+      "id": "world",
+      "label": "World",
+      "continent": null,
+      "focus": { "lat": 20, "lng": 10, "altitude": 2.2 }
+    },
+    {
+      "id": "europe",
+      "label": "Europe Quiz",
+      "continent": "Europe",
+      "focus": { "lat": 52, "lng": 15, "altitude": 1.35 }
+    },
+    {
+      "id": "africa",
+      "label": "Africa Quiz",
+      "continent": "Africa",
+      "focus": { "lat": 3, "lng": 20, "altitude": 1.45 }
+    },
+    {
+      "id": "southeast-asia",
+      "label": "Southeast Asia Quiz",
+      "continent": "Asia",
+      "subregions": ["South-Eastern Asia"],
+      "focus": { "lat": 8, "lng": 110, "altitude": 1.5 }
+    },
+    {
+      "id": "middle-east",
+      "label": "Middle East Quiz",
+      "continent": "Asia",
+      "subregions": ["Western Asia"],
+      "focus": { "lat": 29, "lng": 45, "altitude": 1.45 }
+    },
+    {
+      "id": "north-america",
+      "label": "North America Quiz",
+      "continent": "North America",
+      "focus": { "lat": 43, "lng": -100, "altitude": 1.4 }
+    },
+    {
+      "id": "south-america",
+      "label": "South America Quiz",
+      "continent": "South America",
+      "focus": { "lat": -16, "lng": -60, "altitude": 1.5 }
+    },
+    {
+      "id": "oceania",
+      "label": "Oceania Quiz",
+      "continent": "Oceania",
+      "focus": { "lat": -22, "lng": 140, "altitude": 1.6 }
+    }
+  ]
+}
