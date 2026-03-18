@@ -8,13 +8,23 @@ export function createUiBindings() {
   const wrongIndicatorEl = document.getElementById('wrong-indicator');
   const modeLabelEl = document.getElementById('mode-label');
   const modeEl = document.getElementById('mode');
-  const modeSelect = document.getElementById('mode-select');
+  const modeSelectButton = document.getElementById('mode-select-button');
+  const modeSelectLabel = document.getElementById('mode-select-label');
+  const modeSelectList = document.getElementById('mode-select-list');
+  const modeNormalBtn = document.getElementById('mode-normal');
+  const modeLearningBtn = document.getElementById('mode-learning');
+  const modeReviewBtn = document.getElementById('mode-review');
+  const hardCountEl = document.getElementById('hard-count');
+  const mediumCountEl = document.getElementById('medium-count');
+  const masteredCountEl = document.getElementById('mastered-count');
+  const accuracyRateEl = document.getElementById('accuracy-rate');
   const toastEl = document.getElementById('hud-toast');
   const nextBtn = document.getElementById('next');
   const resetBtn = document.getElementById('reset');
   const playAgainBtn = document.getElementById('play-again');
   let toastTimerId = null;
   let modeOptions = [];
+  let modeMenuOpen = false;
 
   const requiredElements = [
     ['#target', targetEl],
@@ -24,7 +34,16 @@ export function createUiBindings() {
     ['#streak', streakEl],
     ['#wrong-indicator', wrongIndicatorEl],
     ['#mode-label', modeLabelEl],
-    ['#mode-select', modeSelect],
+    ['#mode-select-button', modeSelectButton],
+    ['#mode-select-label', modeSelectLabel],
+    ['#mode-select-list', modeSelectList],
+    ['#mode-normal', modeNormalBtn],
+    ['#mode-learning', modeLearningBtn],
+    ['#mode-review', modeReviewBtn],
+    ['#hard-count', hardCountEl],
+    ['#medium-count', mediumCountEl],
+    ['#mastered-count', masteredCountEl],
+    ['#accuracy-rate', accuracyRateEl],
     ['#next', nextBtn],
     ['#reset', resetBtn]
   ];
@@ -74,17 +93,29 @@ export function createUiBindings() {
     }, durationMs);
   }
 
+  function setModeMenuOpen(isOpen) {
+    modeMenuOpen = Boolean(isOpen);
+    modeSelectList.classList.toggle('is-open', modeMenuOpen);
+    modeSelectButton.setAttribute('aria-expanded', String(modeMenuOpen));
+  }
+
   return {
     // Builds mode selector options from loaded config.
     setModes(modes) {
       modeOptions = Array.isArray(modes) ? modes : [];
-      modeSelect.innerHTML = '';
+      modeSelectList.innerHTML = '';
 
       for (const mode of modeOptions) {
-        const option = document.createElement('option');
-        option.value = mode.id;
-        option.textContent = mode.label;
-        modeSelect.appendChild(option);
+        const item = document.createElement('li');
+        item.className = 'mode-select__item';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'mode-select__option';
+        btn.dataset.modeId = mode.id;
+        btn.setAttribute('role', 'option');
+        btn.textContent = mode.label;
+        item.appendChild(btn);
+        modeSelectList.appendChild(item);
       }
     },
 
@@ -133,20 +164,75 @@ export function createUiBindings() {
 
     // Updates mode selector and compact mode label.
     setActiveMode(modeId) {
-      modeSelect.value = modeId;
       const mode = modeOptions.find(item => item.id === modeId);
       const modeText = toModeName(mode ? mode.label : 'World');
+      if (modeSelectLabel) {
+        modeSelectLabel.textContent = mode ? mode.label : 'World';
+      }
+      const options = modeSelectList.querySelectorAll('.mode-select__option');
+      options.forEach(option => {
+        const isSelected = option.dataset.modeId === modeId;
+        option.classList.toggle('is-selected', isSelected);
+        option.setAttribute('aria-selected', String(isSelected));
+      });
       if (modeEl) modeEl.textContent = modeText;
       else modeLabelEl.textContent = modeText;
     },
 
+    // Updates active learning mode button highlight.
+    setLearningMode(modeId) {
+      const isNormal = modeId === 'normal';
+      const isLearning = modeId === 'learning';
+      const isReview = modeId === 'review';
+      modeNormalBtn.classList.toggle('is-active', isNormal);
+      modeLearningBtn.classList.toggle('is-active', isLearning);
+      modeReviewBtn.classList.toggle('is-active', isReview);
+    },
+
+    // Updates learning stats panel values.
+    setLearningStats({ hard = 0, medium = 0, mastered = 0, accuracy = 0 } = {}) {
+      if (hardCountEl) hardCountEl.textContent = String(hard);
+      if (mediumCountEl) mediumCountEl.textContent = String(medium);
+      if (masteredCountEl) masteredCountEl.textContent = String(mastered);
+      if (accuracyRateEl) accuracyRateEl.textContent = `${Math.round(accuracy)}%`;
+    },
+
     // Wires all HUD controls to controller-provided handlers.
     bindEvents(handlers) {
-      modeSelect.addEventListener('change', () => handlers.onMode(modeSelect.value));
+      modeSelectButton.addEventListener('click', () => setModeMenuOpen(!modeMenuOpen));
+      modeSelectList.addEventListener('click', event => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const option = target.closest('.mode-select__option');
+        if (!option) return;
+        const modeId = option.dataset.modeId;
+        if (modeId) {
+          handlers.onMode(modeId);
+          setModeMenuOpen(false);
+        }
+      });
+      document.addEventListener('click', event => {
+        if (!modeMenuOpen) return;
+        if (event.target === modeSelectButton || modeSelectButton.contains(event.target)) return;
+        if (modeSelectList.contains(event.target)) return;
+        setModeMenuOpen(false);
+      });
+      document.addEventListener('keydown', event => {
+        if (!modeMenuOpen) return;
+        if (event.key === 'Escape') {
+          setModeMenuOpen(false);
+          modeSelectButton.focus();
+        }
+      });
       nextBtn.addEventListener('click', handlers.onNext);
       resetBtn.addEventListener('click', handlers.onReset);
       if (playAgainBtn) {
         playAgainBtn.addEventListener('click', handlers.onPlayAgain);
+      }
+      if (handlers.onLearningMode) {
+        modeNormalBtn.addEventListener('click', () => handlers.onLearningMode('normal'));
+        modeLearningBtn.addEventListener('click', () => handlers.onLearningMode('learning'));
+        modeReviewBtn.addEventListener('click', () => handlers.onLearningMode('review'));
       }
     }
   };

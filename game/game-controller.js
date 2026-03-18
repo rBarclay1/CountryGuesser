@@ -11,9 +11,14 @@ import {
   REVEAL_FILL,
   ALTITUDE_BASE,
   ALTITUDE_HIGHLIGHT
-} from './config.js';
-import { normalizeNumericCode, buildContinentMap, getFeatureCentroid } from './geo-utils.js?v=20260306a';
-import { createUiBindings } from './ui.js?v=20260306a';
+} from '../config.js';
+import { normalizeNumericCode, buildContinentMap, getFeatureCentroid } from '../utils/geo-utils.js';
+import { createUiBindings } from '../ui/hud.js';
+import { LearningStore } from '../learning/learning-store.js';
+import { getWeightedRandomCountry, pickReviewCountry } from '../learning/learning-select.js';
+
+const LEARNING_MODE = 'learning';
+const REVIEW_MODE = 'review';
 
 export class GameController {
   // Initializes game state containers and UI bindings.
@@ -39,9 +44,16 @@ export class GameController {
     this.colorById = new Map();
     this.altitudeById = new Map();
     this.revealedTargetId = null;
+    this.revealLabelData = [];
+    this.wrongLabelData = [];
+    this.revealAdvanceTimerId = null;
     this.canGuessCurrentTarget = true;
     // Tracks incorrect attempts for the currently active target country.
     this.wrongGuessCount = 0;
+    // Learning mode stats keyed by country name.
+    this.learningStore = new LearningStore();
+    this.learningModeEnabled = false;
+    this.reviewModeEnabled = false;
 
     this.ui = createUiBindings();
   }
@@ -101,10 +113,28 @@ export class GameController {
     return response.json();
   }
 
+  // Updates per-country learning stats and recalculates difficulty.
+  updateCountryStats(countryName, wasCorrect) {
+    const stats = this.learningStore.updateCountryStats(countryName, wasCorrect);
+    this.updateLearningStatsHud();
+    return stats;
+  }
+
+  // Pushes learning stats summary into the HUD.
+  updateLearningStatsHud() {
+    const summary = this.learningStore.computeSummary();
+    this.ui.setLearningStats(summary);
+  }
+
   // Connects UI events to controller actions.
   bindUiEvents() {
     this.ui.bindEvents({
       onMode: modeId => this.setMode(modeId),
+      onLearningMode: modeId => {
+        this.setLearningMode(modeId === 'learning');
+        this.setReviewMode(modeId === 'review');
+        this.ui.setLearningMode(modeId);
+      },
       onNext: () => {
         if (this.targetCountry) this.updateTarget();
       },
@@ -132,6 +162,16 @@ export class GameController {
       .polygonStrokeColor(() => BORDER_WORLD)
       .polygonSideColor(() => 'rgba(0,0,0,0)')
       .polygonAltitude(ALTITUDE_BASE)
+      .htmlElementsData([])
+      .htmlLat(d => d.lat)
+      .htmlLng(d => d.lng)
+      .htmlAltitude(d => d.altitude || 0.05)
+      .htmlElement(d => {
+        const el = document.createElement('div');
+        el.className = d.type === 'wrong' ? 'guess-label guess-label--wrong' : 'guess-label';
+        el.textContent = d.name || '';
+        return el;
+      })
       .onPolygonClick(feature => this.onPolygonClick(feature));
 
     const renderer = this.globe.renderer();
@@ -221,8 +261,31 @@ export class GameController {
     const available = this.activePool.filter(feature => !this.guessed.has(feature.properties.idStr));
     if (!available.length) return null;
 
+    if (this.reviewModeEnabled) {
+      const reviewPick = pickReviewCountry(available, this.learningStore, 5);
+      if (reviewPick) return reviewPick;
+    }
+
+    if (this.learningModeEnabled) {
+      const chosenName = getWeightedRandomCountry(available, this.learningStore);
+      if (chosenName) {
+        const chosen = available.find(feature => feature.properties.name === chosenName);
+        if (chosen) return chosen;
+      }
+    }
+
     const index = Math.floor(Math.random() * available.length);
     return available[index];
+  }
+
+  // Enables or disables learning mode selection behavior.
+  setLearningMode(enabled) {
+    this.learningModeEnabled = Boolean(enabled);
+  }
+
+  // Enables or disables review mode selection behavior.
+  setReviewMode(enabled) {
+    this.reviewModeEnabled = Boolean(enabled);
   }
 
   // Removes the yellow reveal highlight when moving to a new target.
@@ -232,6 +295,36 @@ export class GameController {
       this.clearCountryVisual(this.revealedTargetId);
     }
     this.revealedTargetId = null;
+    this.clearRevealLabel();
+    this.clearRevealAdvance();
+  }
+
+  // Clears the on-globe reveal label.
+  clearRevealLabel() {
+    if (!this.revealLabelData.length) return;
+    this.revealLabelData = [];
+    this.syncGuessLabels();
+  }
+
+  // Cancels any scheduled auto-advance after reveal.
+  clearRevealAdvance() {
+    if (this.revealAdvanceTimerId !== null) {
+      window.clearTimeout(this.revealAdvanceTimerId);
+      this.revealAdvanceTimerId = null;
+    }
+  }
+
+  // Clears the last wrong-guess label.
+  clearWrongLabel() {
+    if (!this.wrongLabelData.length) return;
+    this.wrongLabelData = [];
+    this.syncGuessLabels();
+  }
+
+  // Syncs both reveal + wrong labels to the globe.
+  syncGuessLabels() {
+    const data = [...this.revealLabelData, ...this.wrongLabelData];
+    this.globe.htmlElementsData(data);
   }
 
   // Resets per-target wrong-guess tracking and unlocks guessing.
@@ -295,6 +388,8 @@ export class GameController {
     this.colorById.clear();
     this.altitudeById.clear();
     this.clearRevealHighlight();
+    this.clearRevealLabel();
+    this.clearRevealAdvance();
     this.resetWrongGuessTracking();
 
     this.score = 0;
@@ -306,6 +401,7 @@ export class GameController {
     this.ui.setStatusMessage('');
     this.ui.setScore(this.score);
     this.ui.setStreak(this.streak);
+    this.updateLearningStatsHud();
     this.refreshPool();
     this.applyGlobeStyles();
   }
@@ -333,6 +429,7 @@ export class GameController {
     const id = this.targetCountry.properties.idStr;
     if (!id) return;
     const revealToken = this.targetToken;
+    const targetName = this.targetCountry.properties.name || 'Unknown';
 
     this.canGuessCurrentTarget = false;
     this.revealedTargetId = id;
@@ -341,6 +438,16 @@ export class GameController {
 
     const currentPov = this.globe.pointOfView();
     const centroid = getFeatureCentroid(this.targetCountry);
+    this.revealLabelData = [
+      {
+        name: targetName,
+        type: 'reveal',
+        lat: centroid.lat,
+        lng: centroid.lng,
+        altitude: Math.min(currentPov.altitude || 2, 1.35) * 0.03
+      }
+    ];
+    this.syncGuessLabels();
     await this.flyTo(
       {
         lat: centroid.lat,
@@ -352,6 +459,13 @@ export class GameController {
 
     if (revealToken !== this.targetToken || this.revealedTargetId !== id) return;
     this.ui.setStatusMessage('Revealed after 3 incorrect guesses');
+    this.clearRevealAdvance();
+    this.revealAdvanceTimerId = window.setTimeout(() => {
+      if (revealToken !== this.targetToken) return;
+      this.guessed.add(id);
+      this.clearRevealLabel();
+      this.updateTarget();
+    }, 400);
   }
 
   // Switches active mode, resets mode progress, flies to mode POV, then picks target.
@@ -387,6 +501,8 @@ export class GameController {
 
     if (id === this.targetCountry.properties.idStr) {
       this.resetWrongGuessTracking();
+      this.clearWrongLabel();
+      this.updateCountryStats(this.targetCountry.properties.name, true);
 
       this.guessed.add(id);
       this.score += 1;
@@ -411,6 +527,19 @@ export class GameController {
     this.streak = 0;
     this.ui.setWrongGuesses(this.wrongGuessCount);
     this.ui.setStreak(this.streak);
+    this.updateCountryStats(this.targetCountry.properties.name, false);
+    const guessedName = feature.properties.name || 'Unknown';
+    const guessedCentroid = getFeatureCentroid(feature);
+    this.wrongLabelData = [
+      {
+        name: guessedName,
+        type: 'wrong',
+        lat: guessedCentroid.lat,
+        lng: guessedCentroid.lng,
+        altitude: 0.06
+      }
+    ];
+    this.syncGuessLabels();
     // Trigger assist mode on the third incorrect guess for this target.
     if (this.wrongGuessCount >= 3) {
       this.revealCurrentTarget();
@@ -424,6 +553,7 @@ export class GameController {
       else this.altitudeById.set(id, prevAlt);
 
       this.applyGlobeStyles();
+      this.clearWrongLabel();
     }, 420);
   }
 }
