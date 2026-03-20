@@ -9,8 +9,7 @@ import {
   WRONG_FLASH,
   CORRECT_FILL,
   REVEAL_FILL,
-  ALTITUDE_BASE,
-  ALTITUDE_HIGHLIGHT
+  ALTITUDE_BASE
 } from '../config.js';
 import { normalizeNumericCode, buildContinentMap, getFeatureCentroid } from '../utils/geo-utils.js';
 import { createUiBindings } from '../ui/hud.js';
@@ -42,7 +41,6 @@ export class GameController {
 
     this.guessed = new Set();
     this.colorById = new Map();
-    this.altitudeById = new Map();
     this.revealedTargetId = null;
     this.revealLabelData = [];
     this.wrongLabelData = [];
@@ -221,21 +219,19 @@ export class GameController {
         if (this.isWorldMode()) return BORDER_WORLD;
         return this.isFeatureInActiveMode(d) ? BORDER_ACTIVE : BORDER_DIM;
       })
-      .polygonAltitude(d => this.altitudeById.get(d.properties.idStr) || ALTITUDE_BASE);
+      .polygonAltitude(ALTITUDE_BASE);
   }
 
-  // Stores cap color + altitude in stable maps keyed by country id.
-  setCountryVisual(id, color, altitude = ALTITUDE_HIGHLIGHT) {
+  // Stores cap color in a stable map keyed by country id.
+  setCountryVisual(id, color) {
     if (!id) return;
     this.colorById.set(id, color);
-    this.altitudeById.set(id, altitude);
   }
 
-  // Removes per-country visual override so default cap/altitude accessors apply.
+  // Removes per-country visual override so default cap applies.
   clearCountryVisual(id) {
     if (!id) return;
     this.colorById.delete(id);
-    this.altitudeById.delete(id);
   }
 
   // Recomputes the selectable country pool for the active mode.
@@ -386,7 +382,6 @@ export class GameController {
     this.targetToken += 1;
     this.guessed.clear();
     this.colorById.clear();
-    this.altitudeById.clear();
     this.clearRevealHighlight();
     this.clearRevealLabel();
     this.clearRevealAdvance();
@@ -519,7 +514,6 @@ export class GameController {
     }
 
     const prevColor = this.colorById.get(id);
-    const prevAlt = this.altitudeById.get(id);
     this.setCountryVisual(id, WRONG_FLASH);
     this.applyGlobeStyles();
 
@@ -548,9 +542,6 @@ export class GameController {
     window.setTimeout(() => {
       if (prevColor === undefined) this.colorById.delete(id);
       else this.colorById.set(id, prevColor);
-
-      if (prevAlt === undefined) this.altitudeById.delete(id);
-      else this.altitudeById.set(id, prevAlt);
 
       this.applyGlobeStyles();
       this.clearWrongLabel();
