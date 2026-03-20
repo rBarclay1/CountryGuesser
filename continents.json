@@ -33,6 +33,12 @@
       "focus": { "lat": 29, "lng": 45, "altitude": 1.45 }
     },
     {
+      "id": "asia",
+      "label": "Asia Quiz",
+      "continent": "Asia",
+      "focus": { "lat": 30, "lng": 100, "altitude": 1.5 }
+    },
+    {
       "id": "north-america",
       "label": "North America Quiz",
       "continent": "North America",
